@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ShipmentCard } from "../components/ShipmentCard";
+import { ShipmentHistoryDialog } from "@/components/ShipmentHistoryDialog";
 import { UploadInvoicesDialog } from "@/components/UploadInvoicesDialog";
 import { useI18n } from "@/i18n/i18nProvider";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,14 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
 
+  // state pro dialog s historií
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyShipment, setHistoryShipment] = useState<{
+    id: string;
+    trackingNumber: string;
+    companyName: string;
+  } | null>(null);
+
   const { t, locale, setLocale } = useI18n();
 
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
@@ -83,7 +92,7 @@ export default function DashboardPage() {
       setCurrentPage(data.page);
     } catch (err) {
       console.error(err);
-      setError("Nepodařilo se načíst zásilky.");
+      setError(t("dashboard.loadError") ?? "Nepodařilo se načíst zásilky.");
     } finally {
       setLoading(false);
     }
@@ -162,7 +171,7 @@ export default function DashboardPage() {
             {/* filtr podle konkrétního dne */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">
-                {t("dashboard.dateLabel")}
+                {t("dashboard.dateLabel") ?? "Datum"}
               </span>
               <Input
                 type="date"
@@ -173,32 +182,35 @@ export default function DashboardPage() {
             </div>
 
             {/* řazení */}
-            <select
-              value={sortOrder}
-              onChange={(e) =>
-                setSortOrder(e.target.value as "newest" | "oldest")
-              }
-              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-sm h-8"
-            >
-              <option value="newest">{t("dashboard.sortNewest")}</option>
-              <option value="oldest">{t("dashboard.sortOldest")}</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">
+                {t("dashboard.sortLabel") ?? "Řazení"}
+              </span>
+              <select
+                value={sortOrder}
+                onChange={(e) =>
+                  setSortOrder(e.target.value as "newest" | "oldest")
+                }
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-sm h-8"
+              >
+                <option value="newest">
+                  {t("dashboard.sortNewest") ?? "Nejnovější první"}
+                </option>
+                <option value="oldest">
+                  {t("dashboard.sortOldest") ?? "Nejstarší první"}
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Stav načítání / chyba */}
         {loading && (
           <div className="mb-4 text-sm text-slate-500">
-            {" "}
-            {t("dashboard.loading")}
+            {t("dashboard.loading") ?? "Načítám zásilky…"}
           </div>
         )}
-        {error && (
-          <div className="mb-4 text-sm text-red-600">
-            {" "}
-            {t("dashboard.loadError")}
-          </div>
-        )}
+        {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
         {/* Grid of shipment cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -214,7 +226,15 @@ export default function DashboardPage() {
               originCountry={s.originCountry}
               destinationCountry={s.destinationCountry}
               mode={s.mode}
-              // invoiceCount by šlo doplnit, pokud bys posílal z backendu
+              hasHistory={!!s.latestInvoice}
+              onShowHistory={() => {
+                setHistoryShipment({
+                  id: s.id,
+                  trackingNumber: s.trackingNumber,
+                  companyName: s.company.name,
+                });
+                setHistoryOpen(true);
+              }}
             />
           ))}
 
@@ -239,7 +259,7 @@ export default function DashboardPage() {
                 disabled={!canGoPrev || loading}
                 onClick={() => canGoPrev && loadShipments(currentPage - 1)}
               >
-                {t("dashboard.prevPage")}
+                {t("dashboard.prevPage") ?? "Předchozí"}
               </Button>
               <Button
                 type="button"
@@ -248,11 +268,23 @@ export default function DashboardPage() {
                 disabled={!canGoNext || loading}
                 onClick={() => canGoNext && loadShipments(currentPage + 1)}
               >
-                {t("dashboard.nextPage")}
+                {t("dashboard.nextPage") ?? "Další"}
               </Button>
             </div>
           </div>
         )}
+
+        {/* Dialog pro historii faktur */}
+        <ShipmentHistoryDialog
+          open={historyOpen}
+          onOpenChange={(open) => {
+            setHistoryOpen(open);
+            if (!open) {
+              setHistoryShipment(null);
+            }
+          }}
+          shipment={historyShipment}
+        />
       </div>
     </main>
   );

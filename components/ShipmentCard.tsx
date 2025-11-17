@@ -1,6 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n/i18nProvider";
+import { Clock3 } from "lucide-react";
 
 type ShipmentCardProps = {
   trackingNumber: string;
@@ -8,11 +9,13 @@ type ShipmentCardProps = {
   provider: string;
   price: number;
   currency: string;
-  createdAt: string; // ← PŘIDÁNO
+  createdAt: string;
   originCountry: string;
   destinationCountry: string;
   mode: "EXPORT" | "IMPORT";
   invoiceCount?: number;
+  onShowHistory?: () => void; // callback pro otevření historie
+  hasHistory?: boolean; // jestli pro zásilku existuje aspoň jedna faktura
 };
 
 export function ShipmentCard(props: ShipmentCardProps) {
@@ -27,6 +30,8 @@ export function ShipmentCard(props: ShipmentCardProps) {
     destinationCountry,
     mode,
     invoiceCount,
+    onShowHistory,
+    hasHistory,
   } = props;
 
   const { t } = useI18n();
@@ -82,7 +87,7 @@ export function ShipmentCard(props: ShipmentCardProps) {
               {price.toFixed(2)} {currency}
             </span>
 
-            {invoiceCount && invoiceCount > 1 && (
+            {typeof invoiceCount === "number" && invoiceCount > 1 && (
               <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 whitespace-nowrap">
                 {t("dashboard.invoiceCount")}: {invoiceCount}
               </span>
@@ -107,18 +112,32 @@ export function ShipmentCard(props: ShipmentCardProps) {
         {/* DATE FROM SHIPMENT CREATEDAT */}
         <div className="text-xs text-slate-500">{formattedDate}</div>
 
-        <span
-          className={`
-            mt-2 inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold
-            ${
-              isExport
-                ? "bg-[#D9F7EF] text-[#00997F]"
-                : "bg-[#1F2937] text-white"
-            }
-          `}
-        >
-          {isExport ? t("dashboard.export") : t("dashboard.import")}
-        </span>
+        <div className="flex items-center gap-2 mt-2">
+          <span
+            className={`
+              inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold
+              ${
+                isExport
+                  ? "bg-[#D9F7EF] text-[#00997F]"
+                  : "bg-[#1F2937] text-white"
+              }
+            `}
+          >
+            {isExport ? t("dashboard.export") : t("dashboard.import")}
+          </span>
+
+          {/* MALÁ IKONKA HISTORIE – jen pokud existuje historie + je callback */}
+          {onShowHistory && hasHistory && (
+            <button
+              type="button"
+              onClick={onShowHistory}
+              className="inline-flex items-center justify-center rounded-full p-1.5 border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
+              aria-label="Zobrazit historii faktur"
+            >
+              <Clock3 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
