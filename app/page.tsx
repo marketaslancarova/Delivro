@@ -62,6 +62,16 @@ export default function DashboardPage() {
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(PAGE_SIZE));
 
+      if (companyFilter.trim()) {
+        url.searchParams.set("companyName", companyFilter.trim());
+      }
+
+      if (selectedDate) {
+        url.searchParams.set("date", selectedDate);
+      }
+
+      url.searchParams.set("sort", sortOrder);
+
       const res = await fetch(url.toString());
       if (!res.ok) {
         throw new Error("Failed to fetch shipments");
@@ -79,33 +89,20 @@ export default function DashboardPage() {
     }
   }
 
+  // inicialní načtení
   useEffect(() => {
     loadShipments(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // filtr: firma + konkrétní den (createdAt)
-  const filteredShipments = shipments.filter((s) => {
-    const matchesCompany = companyFilter
-      ? s.company.name.toLowerCase().includes(companyFilter.toLowerCase())
-      : true;
-
-    const matchesDate = selectedDate
-      ? new Date(s.createdAt).toISOString().slice(0, 10) === selectedDate
-      : true;
-
-    return matchesCompany && matchesDate;
-  });
-
-  // sort podle createdAt
-  const sortedShipments = [...filteredShipments].sort((a, b) => {
-    const da = new Date(a.createdAt).getTime();
-    const db = new Date(b.createdAt).getTime();
-
-    return sortOrder === "newest" ? db - da : da - db;
-  });
+  // kdykoli se změní filtry, načteme znovu stránku 1
+  useEffect(() => {
+    loadShipments(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyFilter, selectedDate, sortOrder]);
 
   const handleUploaded = () => {
-    // po úspěšném uploadu načti znovu první stránku
+    // po úspěšném uploadu načti znovu první stránku s aktuálními filtry
     loadShipments(1);
   };
 
@@ -164,7 +161,9 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             {/* filtr podle konkrétního dne */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Datum:</span>
+              <span className="text-xs text-slate-500">
+                {t("dashboard.dateLabel")}
+              </span>
               <Input
                 type="date"
                 value={selectedDate}
@@ -181,21 +180,29 @@ export default function DashboardPage() {
               }
               className="rounded-full border border-slate-300 bg-white px-3 py-1 text-sm h-8"
             >
-              <option value="newest">Nejnovější první</option>
-              <option value="oldest">Nejstarší první</option>
+              <option value="newest">{t("dashboard.sortNewest")}</option>
+              <option value="oldest">{t("dashboard.sortOldest")}</option>
             </select>
           </div>
         </div>
 
         {/* Stav načítání / chyba */}
         {loading && (
-          <div className="mb-4 text-sm text-slate-500">Načítám zásilky…</div>
+          <div className="mb-4 text-sm text-slate-500">
+            {" "}
+            {t("dashboard.loading")}
+          </div>
         )}
-        {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+        {error && (
+          <div className="mb-4 text-sm text-red-600">
+            {" "}
+            {t("dashboard.loadError")}
+          </div>
+        )}
 
         {/* Grid of shipment cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {sortedShipments.map((s) => (
+          {shipments.map((s) => (
             <ShipmentCard
               key={s.id}
               trackingNumber={s.trackingNumber}
@@ -207,10 +214,11 @@ export default function DashboardPage() {
               originCountry={s.originCountry}
               destinationCountry={s.destinationCountry}
               mode={s.mode}
+              // invoiceCount by šlo doplnit, pokud bys posílal z backendu
             />
           ))}
 
-          {!loading && !error && sortedShipments.length === 0 && (
+          {!loading && !error && shipments.length === 0 && (
             <div className="col-span-full rounded-2xl bg-white border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
               {t("dashboard.noShipments")}
             </div>
@@ -231,7 +239,7 @@ export default function DashboardPage() {
                 disabled={!canGoPrev || loading}
                 onClick={() => canGoPrev && loadShipments(currentPage - 1)}
               >
-                Předchozí
+                {t("dashboard.prevPage")}
               </Button>
               <Button
                 type="button"
@@ -240,7 +248,7 @@ export default function DashboardPage() {
                 disabled={!canGoNext || loading}
                 onClick={() => canGoNext && loadShipments(currentPage + 1)}
               >
-                Další
+                {t("dashboard.nextPage")}
               </Button>
             </div>
           </div>

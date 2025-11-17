@@ -10,6 +10,18 @@ export const messages = {
       invoiceCount: "invoices",
       company: "Company",
       uploadInvoices: "Upload Invoices",
+
+      // NEW – filters
+      dateLabel: "Date",
+      sortLabel: "Sort",
+      sortNewest: "Newest first",
+      sortOldest: "Oldest first",
+
+      // OPTIONAL – stavové texty (když chceš přetáhnout i to z češtiny)
+      loading: "Loading shipments…",
+      loadError: "Failed to load shipments.",
+      prevPage: "Previous",
+      nextPage: "Next",
     },
 
     uploadDialog: {
@@ -40,7 +52,9 @@ export const messages = {
       confirm: "Confirm",
       uploading: "Uploading…",
       parsing: "Reading and parsing JSON…",
-      invalidJson: "The file does not contain a valid invoice JSON array.",
+
+      // lehce zobecněno, ať sedí i na případ, kdy akceptuješ 1 objekt nebo pole
+      invalidJson: "The file does not contain valid invoice JSON.",
       errorUpload: "Something went wrong during upload.",
     },
   },
@@ -56,6 +70,18 @@ export const messages = {
       invoiceCount: "faktur",
       company: "Firma",
       uploadInvoices: "Nahrát faktury",
+
+      // NEW – filtry
+      dateLabel: "Datum",
+      sortLabel: "Řazení",
+      sortNewest: "Nejnovější první",
+      sortOldest: "Nejstarší první",
+
+      // OPTIONAL – stavové texty pro dashboard
+      loading: "Načítám zásilky…",
+      loadError: "Nepodařilo se načíst zásilky.",
+      prevPage: "Předchozí",
+      nextPage: "Další",
     },
 
     uploadDialog: {
@@ -83,7 +109,9 @@ export const messages = {
       confirm: "Potvrdit",
       uploading: "Nahrávám…",
       parsing: "Načítám a parsuji JSON…",
-      invalidJson: "Soubor neobsahuje validní JSON pole s fakturami.",
+
+      // taky lehce zobecněno
+      invalidJson: "Soubor neobsahuje validní JSON s fakturami.",
       errorUpload: "Něco se pokazilo při nahrávání.",
     },
   },
