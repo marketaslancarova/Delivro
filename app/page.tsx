@@ -1,80 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ShipmentCard } from "../components/ShipmentCard";
 import { UploadInvoicesDialog } from "@/components/UploadInvoicesDialog";
 import { useI18n } from "@/i18n/i18nProvider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-type ShipmentMock = {
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+
+type ShipmentFromApi = {
   id: string;
   trackingNumber: string;
-  companyName: string;
   provider: string;
-  price: number;
-  currency: string;
-  date: string;
+  mode: "EXPORT" | "IMPORT";
   originCountry: string;
   destinationCountry: string;
-  mode: "EXPORT" | "IMPORT";
-  invoiceCount?: number;
+  company: {
+    id: string;
+    name: string;
+  };
+  latestInvoice: null | {
+    price: number;
+    weight: string;
+    uploadedAt: string;
+  };
 };
-
-const MOCK_SHIPMENTS: ShipmentMock[] = [
-  {
-    id: "1",
-    trackingNumber: "885335999184",
-    companyName: "Acme Corporation s.r.o.",
-    provider: "FedEx",
-    price: 457.24,
-    currency: "Kč",
-    date: "9. 10. 2025",
-    originCountry: "CZ",
-    destinationCountry: "UK",
-    mode: "EXPORT",
-    invoiceCount: 1,
-  },
-  {
-    id: "2",
-    trackingNumber: "885335999185",
-    companyName: "Acme Corporation s.r.o.",
-    provider: "FedEx",
-    price: 457.24,
-    currency: "Kč",
-    date: "9. 10. 2025",
-    originCountry: "UK",
-    destinationCountry: "CZ",
-    mode: "IMPORT",
-    invoiceCount: 2,
-  },
-  {
-    id: "3",
-    trackingNumber: "885335999186",
-    companyName: "Beta Logistics a.s.",
-    provider: "GLS",
-    price: 812,
-    currency: "Kč",
-    date: "10. 10. 2025",
-    originCountry: "CZ",
-    destinationCountry: "DE",
-    mode: "EXPORT",
-    invoiceCount: 3,
-  },
-];
 
 export default function DashboardPage() {
   const [companyFilter, setCompanyFilter] = useState("");
+  const [shipments, setShipments] = useState<ShipmentFromApi[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const { t, locale, setLocale } = useI18n();
 
-  const filteredShipments = MOCK_SHIPMENTS.filter((s) =>
+  async function loadShipments() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(`${BACKEND_URL}/api/shipments`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch shipments");
+      }
+
+      const data = (await res.json()) as ShipmentFromApi[];
+      setShipments(data);
+    } catch (err) {
+      console.error(err);
+      setError("Nepodařilo se načíst zásilky.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadShipments();
+  }, []);
+
+  const filteredShipments = shipments.filter((s) =>
     companyFilter
-      ? s.companyName.toLowerCase().includes(companyFilter.toLowerCase())
+      ? s.company.name.toLowerCase().includes(companyFilter.toLowerCase())
       : true
   );
 
   const handleUploaded = () => {
-    console.log("Invoices uploaded – refetch shipments here.");
+    // po úspěšném uploadu refetchnout shipmenty
+    loadShipments();
   };
 
   return (
@@ -127,13 +121,37 @@ export default function DashboardPage() {
           />
         </div>
 
+        {/* Stav načítání / chyba */}
+        {loading && (
+          <div className="mb-4 text-sm text-slate-500">Načítám zásilky…</div>
+        )}
+        {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
+
         {/* Grid of shipment cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredShipments.map((s) => (
-            <ShipmentCard key={s.id} {...s} />
+            <ShipmentCard
+              key={s.id}
+              trackingNumber={s.trackingNumber}
+              companyName={s.company.name}
+              provider={s.provider}
+              price={s.latestInvoice?.price ?? 0}
+              currency="Kč"
+              date={
+                s.latestInvoice
+                  ? new Date(s.latestInvoice.uploadedAt).toLocaleDateString(
+                      "cs-CZ"
+                    )
+                  : "-"
+              }
+              originCountry={s.originCountry}
+              destinationCountry={s.destinationCountry}
+              mode={s.mode}
+              // invoiceCount můžeme doplnit z history endpointu později
+            />
           ))}
 
-          {filteredShipments.length === 0 && (
+          {!loading && !error && filteredShipments.length === 0 && (
             <div className="col-span-full rounded-2xl bg-white border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
               {t("dashboard.noShipments")}
             </div>

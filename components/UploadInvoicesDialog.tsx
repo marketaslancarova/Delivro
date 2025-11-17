@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/table";
 import { ChevronRight, Trash2, Plus } from "lucide-react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
 
 type PreviewRow = {
   id: string;
@@ -36,23 +37,30 @@ type PreviewRow = {
   invoicedWeight: number | null;
 };
 
-type RawInvoice = {
-  id?: string;
-  shipment?: {
-    trackingNumber?: string;
-    provider?: string;
-    originCountry?: string;
-    destinationCountry?: string;
-    company?: { name?: string };
+type InvoiceRecordJson = {
+  id: string;
+  shipment: {
+    id: string;
+    createdAt: string;
+    trackingNumber: string;
+    company: {
+      id: string;
+      name: string;
+    };
+    provider: "GLS" | "DPD" | "UPS" | "PPL" | "FedEx";
+    mode: "IMPORT" | "EXPORT";
+    originCountry: string;
+    destinationCountry: string;
   };
-  invoicedPrice?: number | string;
-  invoicedWeight?: number | string;
+  invoicedPrice: number;
+  invoicedWeight: number;
 };
 
 type ParsedFile = {
   id: string;
   file: File;
   rows: PreviewRow[];
+  records: InvoiceRecordJson[];
   expanded: boolean;
 };
 
@@ -119,12 +127,13 @@ export function UploadInvoicesDialog({
           throw new Error(t("uploadDialog.invalidJson"));
         }
 
-        const arr: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+        const records: InvoiceRecordJson[] = Array.isArray(parsed)
+          ? (parsed as InvoiceRecordJson[])
+          : [parsed as InvoiceRecordJson];
 
-        const rows: PreviewRow[] = arr.map((item, index) => {
-          const raw = item as RawInvoice;
-          const shipment = raw.shipment ?? {};
-          const company = shipment.company ?? {};
+        const rows: PreviewRow[] = records.map((raw, index) => {
+          const shipment = raw.shipment;
+          const company = shipment.company;
 
           return {
             id: raw.id ?? `file-${file.name}-row-${index}`,
@@ -145,6 +154,7 @@ export function UploadInvoicesDialog({
           id: `${file.name}-${file.lastModified}-${file.size}`,
           file,
           rows,
+          records,
           expanded: false,
         });
       }
@@ -209,18 +219,21 @@ export function UploadInvoicesDialog({
       return;
     }
 
-    const formData = new FormData();
-    parsedFiles.forEach((pf) => {
-      formData.append("files", pf.file);
-    });
+    // spojíme všechny záznamy ze všech souborů do jednoho pole
+    const allRecords: InvoiceRecordJson[] = parsedFiles.flatMap(
+      (pf) => pf.records
+    );
 
     setIsUploading(true);
     setError(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/upload-invoices`, {
+      const res = await fetch(`${BACKEND_URL}/api/invoices/upload`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(allRecords),
       });
 
       if (!res.ok) {
