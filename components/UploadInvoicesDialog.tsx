@@ -265,7 +265,13 @@ export function UploadInvoicesDialog({
       </DialogTrigger>
 
       {/* větší dialog */}
-      <DialogContent className="max-w-5xl">
+      <DialogContent
+        className="
+    sm:max-w-[900px] 
+    max-h-[80vh]      
+    overflow-y-auto  
+  "
+      >
         <DialogHeader>
           <DialogTitle>{t("uploadDialog.title")}</DialogTitle>
           <DialogDescription>{t("uploadDialog.helperText")}</DialogDescription>
