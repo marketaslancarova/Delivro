@@ -1,3 +1,4 @@
+// components/UploadInvoicesDialog.tsx
 "use client";
 
 import { useState, useRef } from "react";
@@ -22,39 +23,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ChevronRight, Trash2, Plus } from "lucide-react";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
-
-type PreviewRow = {
-  id: string;
-  trackingNumber: string;
-  companyName: string;
-  provider: string;
-  originCountry: string;
-  destinationCountry: string;
-  invoicedPrice: number;
-  invoicedWeight: number | null;
-};
-
-type InvoiceRecordJson = {
-  id: string;
-  shipment: {
-    id: string;
-    createdAt: string;
-    trackingNumber: string;
-    company: {
-      id: string;
-      name: string;
-    };
-    provider: "GLS" | "DPD" | "UPS" | "PPL" | "FedEx";
-    mode: "IMPORT" | "EXPORT";
-    originCountry: string;
-    destinationCountry: string;
-  };
-  invoicedPrice: number;
-  invoicedWeight: number;
-};
+import { BACKEND_URL } from "@/lib/config";
+import {
+  InvoiceRecordJson,
+  PreviewRow,
+  buildFileKey,
+  isJsonFile,
+  parseInvoiceFile,
+} from "@/lib/types/invoices";
+import { cn } from "@/lib/utils";
 
 type ParsedFile = {
   id: string;
@@ -97,78 +74,47 @@ export function UploadInvoicesDialog({
 
   // zparsuje a přidá nové soubory
   const addFiles = async (filesToAdd: File[]) => {
-    if (filesToAdd.length === 0) return;
+    if (!filesToAdd.length) return;
 
     setIsParsing(true);
     setError(null);
 
     try {
-      const existingKeys = new Set(
-        parsedFiles.map(
-          (pf) => `${pf.file.name}-${pf.file.lastModified}-${pf.file.size}`
-        )
-      );
+      const existingKeys = new Set(parsedFiles.map((pf) => pf.id));
 
-      const uniqueFiles = filesToAdd.filter((f) => {
-        const key = `${f.name}-${f.lastModified}-${f.size}`;
+      const uniqueFiles = filesToAdd.filter((file) => {
+        const key = buildFileKey(file);
         return !existingKeys.has(key);
       });
 
-      const newParsed: ParsedFile[] = [];
+      const newlyParsed: ParsedFile[] = [];
 
-      for (let i = 0; i < uniqueFiles.length; i++) {
-        const file = uniqueFiles[i];
-        const text = await file.text();
-
-        let parsed: unknown;
+      for (const file of uniqueFiles) {
         try {
-          parsed = JSON.parse(text);
-        } catch {
-          throw new Error(t("uploadDialog.invalidJson"));
+          const { rows, records } = await parseInvoiceFile(file);
+
+          newlyParsed.push({
+            id: buildFileKey(file),
+            file,
+            rows,
+            records,
+            expanded: false,
+          });
+        } catch (err) {
+          console.error(err);
+          // jedna chyba = zobrazíme obecnou hlášku, aby uživatel věděl
+          setError(t("uploadDialog.invalidJson"));
         }
-
-        const records: InvoiceRecordJson[] = Array.isArray(parsed)
-          ? (parsed as InvoiceRecordJson[])
-          : [parsed as InvoiceRecordJson];
-
-        const rows: PreviewRow[] = records.map((raw, index) => {
-          const shipment = raw.shipment;
-          const company = shipment.company;
-
-          return {
-            id: raw.id ?? `file-${file.name}-row-${index}`,
-            trackingNumber: shipment.trackingNumber ?? "N/A",
-            companyName: company.name ?? "Unknown",
-            provider: shipment.provider ?? "N/A",
-            originCountry: shipment.originCountry ?? "-",
-            destinationCountry: shipment.destinationCountry ?? "-",
-            invoicedPrice: Number(raw.invoicedPrice ?? 0),
-            invoicedWeight:
-              raw.invoicedWeight !== undefined
-                ? Number(raw.invoicedWeight)
-                : null,
-          };
-        });
-
-        newParsed.push({
-          id: `${file.name}-${file.lastModified}-${file.size}`,
-          file,
-          rows,
-          records,
-          expanded: false,
-        });
       }
 
-      setParsedFiles((prev) => [...prev, ...newParsed]);
-    } catch (err) {
-      console.error(err);
-      setError(t("uploadDialog.invalidJson"));
+      if (newlyParsed.length) {
+        setParsedFiles((prev) => [...prev, ...newlyParsed]);
+      }
     } finally {
       setIsParsing(false);
     }
   };
 
-  // kliknutí / výběr souborů
   const handleFileInputChange = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -178,7 +124,6 @@ export function UploadInvoicesDialog({
     e.target.value = "";
   };
 
-  // drag & drop do čtverce
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -194,12 +139,9 @@ export function UploadInvoicesDialog({
     e.preventDefault();
     setIsDragging(false);
 
-    const jsonFiles = Array.from(e.dataTransfer.files).filter(
-      (file) =>
-        file.type === "application/json" ||
-        file.name.toLowerCase().endsWith(".json")
-    );
-    if (jsonFiles.length === 0) return;
+    const jsonFiles = Array.from(e.dataTransfer.files).filter(isJsonFile);
+    if (!jsonFiles.length) return;
+
     await addFiles(jsonFiles);
   };
 
@@ -214,12 +156,11 @@ export function UploadInvoicesDialog({
   };
 
   const handleConfirmUpload = async () => {
-    if (parsedFiles.length === 0) {
+    if (!parsedFiles.length) {
       setError(t("uploadDialog.invalidJson"));
       return;
     }
 
-    // spojíme všechny záznamy ze všech souborů do jednoho pole
     const allRecords: InvoiceRecordJson[] = parsedFiles.flatMap(
       (pf) => pf.records
     );
@@ -230,9 +171,7 @@ export function UploadInvoicesDialog({
     try {
       const res = await fetch(`${BACKEND_URL}/api/invoices/upload`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(allRecords),
       });
 
@@ -244,7 +183,7 @@ export function UploadInvoicesDialog({
       await res.json();
       setOpen(false);
       resetState();
-      if (onUploaded) onUploaded();
+      onUploaded?.();
     } catch (err) {
       console.error(err);
       setError(t("uploadDialog.errorUpload"));
@@ -252,6 +191,8 @@ export function UploadInvoicesDialog({
       setIsUploading(false);
     }
   };
+
+  const hasFiles = parsedFiles.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -264,34 +205,26 @@ export function UploadInvoicesDialog({
         </Button>
       </DialogTrigger>
 
-      {/* větší dialog */}
-      <DialogContent
-        className="
-    sm:max-w-[900px] 
-    max-h-[80vh]      
-    overflow-y-auto  
-  "
-      >
+      <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("uploadDialog.title")}</DialogTitle>
           <DialogDescription>{t("uploadDialog.helperText")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* JEDEN jemný čtverec = drop zóna + obsah (placeholder nebo soubory) */}
+          {/* Drop zóna + obsah */}
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`border border-dashed rounded-2xl bg-slate-50/50 transition px-4 ${
-              parsedFiles.length === 0 ? "py-8" : "py-4"
-            } ${
+            className={cn(
+              "border border-dashed rounded-2xl bg-slate-50/50 transition px-4",
+              hasFiles ? "py-4" : "py-8",
               isDragging
                 ? "border-[#00C3A0] bg-emerald-50/50"
                 : "border-slate-200"
-            }`}
+            )}
           >
-            {/* skrytý input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -301,8 +234,7 @@ export function UploadInvoicesDialog({
               onChange={handleFileInputChange}
             />
 
-            {parsedFiles.length === 0 ? (
-              // placeholder text, když nejsou soubory
+            {!hasFiles ? (
               <div
                 role="button"
                 tabIndex={0}
@@ -328,7 +260,6 @@ export function UploadInvoicesDialog({
                 </span>
               </div>
             ) : (
-              // seznam souborů + rozbalovací náhled, vše uvnitř čtverce
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500">
@@ -359,9 +290,10 @@ export function UploadInvoicesDialog({
                         className="flex items-center gap-2 text-left"
                       >
                         <ChevronRight
-                          className={`h-4 w-4 transition-transform ${
-                            pf.expanded ? "rotate-90" : ""
-                          }`}
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            pf.expanded && "rotate-90"
+                          )}
                         />
                         <div className="flex flex-col">
                           <span className="text-sm font-medium truncate max-w-xs sm:max-w-sm">
@@ -458,7 +390,7 @@ export function UploadInvoicesDialog({
             <Button
               type="button"
               onClick={handleConfirmUpload}
-              disabled={isUploading || parsedFiles.length === 0}
+              disabled={isUploading || !parsedFiles.length}
               className="bg-[#00C3A0] hover:bg-[#009E85] text-white"
             >
               {isUploading

@@ -1,7 +1,7 @@
 // components/dashboard/ShipmentsGrid.tsx
 "use client";
 
-import { ShipmentFromApi } from "@/lib/data.types";
+import { ShipmentFromApi } from "@/lib/types/data.types";
 import { ShipmentCard } from "@/components/ShipmentCard";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/i18nProvider";

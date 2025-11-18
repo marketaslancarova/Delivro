@@ -11,7 +11,7 @@ import { FiltersBar } from "@/components/dashboard/FiltersBar";
 import { ShipmentsGrid } from "@/components/dashboard/ShipmentsGrid";
 import { Pagination } from "@/components/dashboard/Pagination";
 
-import { ShipmentFromApi, ShipmentsResponse } from "@/lib/data.types";
+import { ShipmentFromApi, ShipmentsResponse } from "@/lib/types/data.types";
 import { useI18n } from "@/i18n/i18nProvider";
 
 const BACKEND_URL =

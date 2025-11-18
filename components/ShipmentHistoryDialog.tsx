@@ -1,3 +1,4 @@
+// components/ShipmentHistoryDialog.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,38 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
-
-type InvoiceHistoryItem = {
-  id: string;
-  price: number | string;
-  weight: string;
-  uploadedAt: string;
-};
-
-type ShipmentSummary = {
-  id: string;
-  trackingNumber: string;
-  companyName: string;
-};
-
-type ShipmentHistoryResponse = {
-  shipment: {
-    id: string;
-    trackingNumber: string;
-    provider: string;
-    mode: "EXPORT" | "IMPORT";
-    originCountry: string;
-    destinationCountry: string;
-    company: {
-      id: string;
-      name: string;
-    };
-  };
-  history: InvoiceHistoryItem[];
-};
+import {
+  fetchShipmentHistory,
+  InvoiceHistoryItem,
+  ShipmentSummary,
+} from "@/lib/types/history";
+import { useI18n } from "@/i18n/i18nProvider";
 
 type ShipmentHistoryDialogProps = {
   open: boolean;
@@ -59,29 +34,20 @@ export function ShipmentHistoryDialog({
   onOpenChange,
   shipment,
 }: ShipmentHistoryDialogProps) {
+  const { t } = useI18n();
+
   const [items, setItems] = useState<InvoiceHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // načti historii vždy, když dialog otevřeme pro konkrétní shipment
   useEffect(() => {
-    if (!open || !shipment) {
-      return;
-    }
+    if (!open || !shipment) return;
 
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        const res = await fetch(
-          `${BACKEND_URL}/api/shipments/${shipment.id}/history`
-        );
-        if (!res.ok) {
-          throw new Error("Failed to fetch history");
-        }
-
-        const data = (await res.json()) as ShipmentHistoryResponse;
+        const data = await fetchShipmentHistory(shipment.id);
         setItems(data.history);
       } catch (err) {
         console.error(err);
@@ -92,14 +58,13 @@ export function ShipmentHistoryDialog({
     };
 
     load();
-  }, [open, shipment]);
+  }, [open, shipment, t]);
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
-          // při zavření smažeme data
           setItems([]);
           setError(null);
         }
@@ -109,7 +74,7 @@ export function ShipmentHistoryDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            Historie faktur{" "}
+            {"Historie faktur"}{" "}
             {shipment
               ? `– ${shipment.trackingNumber} (${shipment.companyName})`
               : ""}
@@ -118,7 +83,7 @@ export function ShipmentHistoryDialog({
 
         {!shipment && (
           <div className="text-sm text-slate-500">
-            Není vybraná žádná zásilka.
+            {"Není vybraná žádná zásilka."}
           </div>
         )}
 
@@ -126,7 +91,7 @@ export function ShipmentHistoryDialog({
           <>
             {loading && (
               <div className="text-sm text-slate-500">
-                Načítám historii faktur…
+                {"Načítám historii faktur…"}
               </div>
             )}
 
@@ -134,7 +99,7 @@ export function ShipmentHistoryDialog({
 
             {!loading && !error && items.length === 0 && (
               <div className="text-sm text-slate-500">
-                Pro tuto zásilku zatím žádná historie faktur není.
+                {"Pro tuto zásilku zatím žádná historie faktur není."}
               </div>
             )}
 
@@ -144,9 +109,9 @@ export function ShipmentHistoryDialog({
                   <TableHeader>
                     <TableRow>
                       <TableHead>ID</TableHead>
-                      <TableHead className="text-right">Cena</TableHead>
-                      <TableHead className="text-right">Váha</TableHead>
-                      <TableHead>Datum nahrání</TableHead>
+                      <TableHead className="text-right">{"Cena"}</TableHead>
+                      <TableHead className="text-right">{"Váha"}</TableHead>
+                      <TableHead>{"Datum nahrání"}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
